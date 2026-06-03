@@ -52,16 +52,79 @@
       color: var(--text);
     }
 
-    #loc {
+    .loc-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-top: 0.3rem;
+    }
+
+    #locText {
       font-size: 0.72rem;
       color: var(--dim);
-      margin-top: 0.25rem;
+    }
+
+    #locChange {
+      font-size: 0.68rem;
+      color: var(--accent);
+      background: none;
+      border: none;
       cursor: pointer;
+      padding: 0;
       text-decoration: underline;
-      text-decoration-style: dotted;
       text-underline-offset: 2px;
       -webkit-tap-highlight-color: transparent;
     }
+
+    /* ── City search ── */
+    .city-bar {
+      margin: 0.6rem 1rem 0;
+      display: none;
+    }
+
+    .city-form {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .city-input {
+      flex: 1;
+      background: var(--surf2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.5rem 0.75rem;
+      color: var(--text);
+      font-size: 0.85rem;
+      outline: none;
+      -webkit-appearance: none;
+    }
+
+    .city-input::placeholder { color: var(--dim); }
+    .city-input:focus { border-color: var(--accent); }
+
+    .city-submit {
+      background: var(--accent);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.5rem 0.9rem;
+      cursor: pointer;
+      white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .city-msg {
+      font-size: 0.7rem;
+      margin-top: 0.35rem;
+      color: var(--dim);
+      text-align: center;
+      min-height: 1em;
+    }
+
+    .city-msg.err { color: #e07070; }
 
     /* ── Month nav ── */
     .month-nav {
@@ -333,7 +396,19 @@
 <div class="app">
   <div class="header">
     <h1>🌙 Moon &amp; Sun Calendar 2026</h1>
-    <div id="loc">Detecting location…</div>
+    <div class="loc-row">
+      <span id="locText">📍 Mumbai, India</span>
+      <button id="locChange">change</button>
+    </div>
+  </div>
+  <div class="city-bar" id="cityBar">
+    <form class="city-form" id="cityForm" autocomplete="off">
+      <input class="city-input" id="cityInput" type="search"
+             placeholder="Search city or region…"
+             autocorrect="off" autocapitalize="off" spellcheck="false">
+      <button class="city-submit" type="submit">Search</button>
+    </form>
+    <div class="city-msg" id="cityMsg"></div>
   </div>
 
   <div class="month-nav">
@@ -416,79 +491,8 @@ const MONTHS = ['January','February','March','April','May','June',
                 'July','August','September','October','November','December'];
 const MIN_M = 5, MAX_M = 11; // June–December
 
-// IANA timezone → representative [lat, lng]. Covers the most common zones.
-// PDT and MDT share the same UTC-7 offset in summer, so raw offset math
-// picks Colorado for Pacific users — hence the explicit lookup instead.
-const TZ_COORDS = {
-  'America/Los_Angeles':  [34.05, -118.24],
-  'America/Vancouver':    [49.25, -123.12],
-  'America/Tijuana':      [32.53, -117.03],
-  'America/Phoenix':      [33.45, -112.07],
-  'America/Denver':       [39.74, -104.98],
-  'America/Boise':        [43.62, -116.20],
-  'America/Chicago':      [41.85,  -87.65],
-  'America/Dallas':       [32.78,  -96.80],
-  'America/Mexico_City':  [19.43,  -99.13],
-  'America/New_York':     [40.71,  -74.01],
-  'America/Toronto':      [43.70,  -79.42],
-  'America/Halifax':      [44.65,  -63.57],
-  'America/Anchorage':    [61.22, -149.90],
-  'America/Honolulu':     [21.31, -157.86],
-  'America/Sao_Paulo':    [-23.55, -46.63],
-  'America/Buenos_Aires': [-34.61, -58.38],
-  'America/Bogota':       [4.71,   -74.07],
-  'America/Lima':         [-12.05, -77.04],
-  'Europe/London':        [51.51,   -0.13],
-  'Europe/Dublin':        [53.35,   -6.27],
-  'Europe/Lisbon':        [38.72,   -9.14],
-  'Europe/Paris':         [48.85,    2.35],
-  'Europe/Berlin':        [52.52,   13.40],
-  'Europe/Rome':          [41.90,   12.50],
-  'Europe/Madrid':        [40.42,   -3.70],
-  'Europe/Amsterdam':     [52.37,    4.90],
-  'Europe/Stockholm':     [59.33,   18.07],
-  'Europe/Athens':        [37.97,   23.73],
-  'Europe/Istanbul':      [41.01,   28.95],
-  'Europe/Moscow':        [55.75,   37.62],
-  'Africa/Cairo':         [30.06,   31.25],
-  'Africa/Lagos':         [6.45,    3.40],
-  'Africa/Nairobi':       [-1.29,   36.82],
-  'Africa/Johannesburg':  [-26.20,  28.04],
-  'Asia/Dubai':           [25.20,   55.27],
-  'Asia/Kolkata':         [28.61,   77.21],
-  'Asia/Dhaka':           [23.72,   90.41],
-  'Asia/Bangkok':         [13.75,  100.52],
-  'Asia/Shanghai':        [31.23,  121.47],
-  'Asia/Hong_Kong':       [22.32,  114.17],
-  'Asia/Tokyo':           [35.69,  139.69],
-  'Asia/Seoul':           [37.57,  126.98],
-  'Asia/Singapore':       [1.35,   103.82],
-  'Asia/Taipei':          [25.05,  121.53],
-  'Australia/Perth':      [-31.95, 115.86],
-  'Australia/Adelaide':   [-34.93, 138.60],
-  'Australia/Sydney':     [-33.87, 151.21],
-  'Australia/Melbourne':  [-37.81, 144.96],
-  'Pacific/Auckland':     [-36.87, 174.77],
-  'Pacific/Honolulu':     [21.31, -157.86],
-};
-
-function defaultCoords() {
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  if (TZ_COORDS[tz]) return TZ_COORDS[tz];
-  // Fallback: parent zone e.g. "America/Indiana/Indianapolis" → "America/New_York"
-  for (const key of Object.keys(TZ_COORDS)) {
-    if (tz.startsWith(key.split('/')[0])) {
-      // rough match by continent — use offset-based longitude
-      break;
-    }
-  }
-  const tzHr = -new Date().getTimezoneOffset() / 60;
-  return [37, Math.max(-179, Math.min(179, tzHr * 15))];
-}
-
-const [_dlat, _dlng] = defaultCoords();
-let lat = _dlat;
-let lng = _dlng;
+// Default: Mumbai
+let lat = 19.0760, lng = 72.8777;
 let curMonth = 5; // start on June
 
 /* ── Moon phase helpers ── */
@@ -616,33 +620,77 @@ function nav(dir) {
   if (n >= MIN_M && n <= MAX_M) { curMonth = n; render(); window.scrollTo(0, 0); }
 }
 
-/* ── Geolocation ── */
-function requestLocation() {
-  const locEl = document.getElementById('loc');
-  if (!navigator.geolocation) {
-    locEl.textContent = '📍 Showing approximate times';
-    return;
-  }
-  locEl.textContent = '⏳ Finding your location…';
+/* ── City search bar ── */
+function showCityBar(msg) {
+  document.getElementById('cityBar').style.display = 'block';
+  if (msg) setMsg(msg, false);
+  setTimeout(() => document.getElementById('cityInput').focus(), 50);
+}
+
+function hideCityBar() {
+  document.getElementById('cityBar').style.display = 'none';
+  setMsg('', false);
+}
+
+function setMsg(text, isErr) {
+  const el = document.getElementById('cityMsg');
+  el.textContent = text;
+  el.className = 'city-msg' + (isErr ? ' err' : '');
+}
+
+function setLocText(text) {
+  document.getElementById('locText').textContent = text;
+}
+
+/* ── GPS ── */
+function tryGPS() {
+  if (!navigator.geolocation) { return; }
+  setLocText('⏳ Locating…');
   navigator.geolocation.getCurrentPosition(
     pos => {
       lat = pos.coords.latitude;
       lng = pos.coords.longitude;
       const la = `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'}`;
       const lo = `${Math.abs(lng).toFixed(2)}°${lng >= 0 ? 'E' : 'W'}`;
-      locEl.textContent = `📍 ${la}, ${lo}`;
+      setLocText(`📍 ${la}, ${lo}`);
+      hideCityBar();
       render();
     },
-    () => {
-      locEl.textContent = '📍 Tap here to enable location';
+    err => {
+      setLocText('📍 Mumbai, India');
+      if (err.code === 1) {
+        showCityBar('Location blocked — search your city instead');
+      }
     },
     { timeout: 10000, enableHighAccuracy: false }
   );
 }
 
-document.getElementById('loc').addEventListener('click', requestLocation);
-requestLocation();
+/* ── City geocoding (Open-Meteo, free, no API key) ── */
+document.getElementById('cityForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const q = document.getElementById('cityInput').value.trim();
+  if (!q) return;
+  setMsg('Searching…', false);
+  try {
+    const res  = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=en&format=json`);
+    const data = await res.json();
+    if (!data.results?.length) { setMsg('City not found — try another name', true); return; }
+    const r = data.results[0];
+    lat = r.latitude;
+    lng = r.longitude;
+    const label = [r.name, r.admin1, r.country].filter(Boolean).join(', ');
+    setLocText(`📍 ${label}`);
+    hideCityBar();
+    render();
+  } catch {
+    setMsg('Search failed — check your connection', true);
+  }
+});
 
+document.getElementById('locChange').addEventListener('click', () => showCityBar());
+
+tryGPS();
 render();
 </script>
 </body>
