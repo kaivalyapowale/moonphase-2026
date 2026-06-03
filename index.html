@@ -599,14 +599,20 @@ const FEST = {
 };
 
 function getFestival(date) {
-  const sun      = SunCalc.getTimes(date, lat, lng);
-  const checkAt  = (sun.sunrise && !isNaN(sun.sunrise)) ? sun.sunrise : new Date(date.getFullYear(), date.getMonth(), date.getDate(), 6);
-  const { phase } = SunCalc.getMoonIllumination(checkAt);
-  const tithi    = Math.floor(phase * 30);
-  const m        = date.getMonth(); // 0-indexed
+  // Bracket the full IST calendar day in UTC:
+  //   IST midnight = 18:30 UTC the previous calendar day
+  //   IST 23:59    = 18:29 UTC this calendar day
+  // Mark only the day the tithi STARTS (boundary crossed today),
+  // so each festival appears exactly once regardless of browser timezone.
+  const y = date.getFullYear(), mo = date.getMonth(), d = date.getDate();
+  const dayStart = new Date(Date.UTC(y, mo, d - 1, 18, 30, 0));
+  const dayEnd   = new Date(Date.UTC(y, mo, d,     18, 29, 0));
+  const tS = Math.floor(SunCalc.getMoonIllumination(dayStart).phase * 30);
+  const tE = Math.floor(SunCalc.getMoonIllumination(dayEnd).phase   * 30);
+  const started = t => tS < t && tE >= t;
 
-  if (tithi === 18) return FEST.sankashti;
-  if (tithi === 3)  return (m === 7) ? FEST.ganesh : FEST.chaturthi; // Aug = Bhadrapada = Ganesh Chaturthi
+  if (started(18)) return FEST.sankashti;
+  if (started(3))  return mo === 7 ? FEST.ganesh : FEST.chaturthi;
   return null;
 }
 
