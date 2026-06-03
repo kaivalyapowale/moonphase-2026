@@ -599,20 +599,41 @@ const FEST = {
 };
 
 function getFestival(date) {
-  // Bracket the full IST calendar day in UTC:
-  //   IST midnight = 18:30 UTC the previous calendar day
-  //   IST 23:59    = 18:29 UTC this calendar day
-  // Mark only the day the tithi STARTS (boundary crossed today),
-  // so each festival appears exactly once regardless of browser timezone.
   const y = date.getFullYear(), mo = date.getMonth(), d = date.getDate();
-  const dayStart = new Date(Date.UTC(y, mo, d - 1, 18, 30, 0));
-  const dayEnd   = new Date(Date.UTC(y, mo, d,     18, 29, 0));
-  const tS = Math.floor(SunCalc.getMoonIllumination(dayStart).phase * 30);
-  const tE = Math.floor(SunCalc.getMoonIllumination(dayEnd).phase   * 30);
-  const started = t => tS < t && tE >= t;
 
-  if (started(18)) return FEST.sankashti;
-  if (started(3))  return mo === 7 ? FEST.ganesh : FEST.chaturthi;
+  // Helper: tithi at moonrise for a given UTC calendar day (inUTC mode)
+  function moonriseTithi(utcDay) {
+    const m = SunCalc.getMoonTimes(utcDay, lat, lng, true);
+    return m.rise ? Math.floor(SunCalc.getMoonIllumination(m.rise).phase * 30) : -1;
+  }
+
+  // Helper: tithi at sunrise for a given IST noon (timezone-independent)
+  function sunriseTithi(istNoon) {
+    const sr = SunCalc.getTimes(istNoon, lat, lng).sunrise;
+    return (sr && !isNaN(sr)) ? Math.floor(SunCalc.getMoonIllumination(sr).phase * 30) : -1;
+  }
+
+  // ── SANKASHTI: day when moonrise first occurs during Krishna Chaturthi (tithi 18)
+  // Rule matches DrikPanchang: first day where moonrise has tithi 18.
+  // Kshaya fallback: if tithi 18 is too short to appear at moonrise on any day,
+  // the day whose moonrise is the last before tithi 19 is the observed day.
+  const tM  = moonriseTithi(new Date(Date.UTC(y, mo, d)));
+  const tMP = moonriseTithi(new Date(Date.UTC(y, mo, d - 1)));
+  const tMN = moonriseTithi(new Date(Date.UTC(y, mo, d + 1)));
+  if (tM === 18 && tMP !== 18) return FEST.sankashti;                      // normal
+  if (tM < 18 && tMP < 18 && tMN > 18 && tMP !== -1 && tMN !== -1)        // kshaya
+    return FEST.sankashti;
+
+  // ── VINAYAKA: Shukla Chaturthi (tithi 3) prevailing at sunrise — udaya tithi
+  // Kshaya fallback: if tithi 3 is too short to appear at sunrise, use the day
+  // whose sunrise is last before the tithi jump.
+  const nIST  = n => new Date(Date.UTC(y, mo, n, 6, 30, 0)); // noon IST = 06:30 UTC
+  const tSun  = sunriseTithi(nIST(d));
+  const tSunN = sunriseTithi(nIST(d + 1));
+  if (tSun === 3) return mo === 8 ? FEST.ganesh : FEST.chaturthi;           // normal
+  if (tSun < 3 && tSunN > 3 && tSun !== -1 && tSunN !== -1)                // kshaya
+    return mo === 8 ? FEST.ganesh : FEST.chaturthi;
+
   return null;
 }
 
