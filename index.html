@@ -389,6 +389,57 @@
       color: var(--text);
       font-variant-numeric: tabular-nums;
     }
+
+    /* ── Festival dot on calendar cells ── */
+    .fest-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .fest-dot.sankashti { background: #f97316; }
+    .fest-dot.chaturthi { background: #a855f7; }
+    .fest-dot.ganesh    { background: #f59e0b; }
+
+    /* ── Festival card in bottom sheet ── */
+    .fest-card {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      border-radius: 15px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.75rem;
+      border: 1px solid;
+    }
+    .fest-card.sankashti { background: rgba(249,115,22,.1);  border-color: rgba(249,115,22,.35); }
+    .fest-card.chaturthi { background: rgba(168,85,247,.1);  border-color: rgba(168,85,247,.35); }
+    .fest-card.ganesh    { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.4);  }
+
+    .fest-emoji { font-size: 1.6rem; line-height: 1; }
+
+    .fest-info strong {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .fest-info span {
+      font-size: 0.73rem;
+      color: var(--dim);
+    }
+
+    /* ── Legend updates ── */
+    .legend-section {
+      padding: 0.6rem 1rem 0;
+    }
+    .legend-title {
+      font-size: 0.6rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--dim);
+      margin-bottom: 0.35rem;
+    }
   </style>
 </head>
 <body>
@@ -426,15 +477,26 @@
     <div class="days" id="grid"></div>
   </div>
 
-  <div class="legend">
-    <div class="leg-item"><span>🌑</span> New</div>
-    <div class="leg-item"><span>🌒</span> Wax. Crescent</div>
-    <div class="leg-item"><span>🌓</span> 1st Quarter</div>
-    <div class="leg-item"><span>🌔</span> Wax. Gibbous</div>
-    <div class="leg-item"><span>🌕</span> Full</div>
-    <div class="leg-item"><span>🌖</span> Wan. Gibbous</div>
-    <div class="leg-item"><span>🌗</span> 3rd Quarter</div>
-    <div class="leg-item"><span>🌘</span> Wan. Crescent</div>
+  <div class="legend-section">
+    <div class="legend-title">Moon Phases</div>
+    <div class="legend">
+      <div class="leg-item"><span>🌑</span> New</div>
+      <div class="leg-item"><span>🌒</span> Wax. Crescent</div>
+      <div class="leg-item"><span>🌓</span> 1st Quarter</div>
+      <div class="leg-item"><span>🌔</span> Wax. Gibbous</div>
+      <div class="leg-item"><span>🌕</span> Full</div>
+      <div class="leg-item"><span>🌖</span> Wan. Gibbous</div>
+      <div class="leg-item"><span>🌗</span> 3rd Quarter</div>
+      <div class="leg-item"><span>🌘</span> Wan. Crescent</div>
+    </div>
+  </div>
+  <div class="legend-section" style="padding-bottom:1rem">
+    <div class="legend-title">Festivals</div>
+    <div class="legend">
+      <div class="leg-item"><span class="fest-dot sankashti" style="width:8px;height:8px;display:inline-block;border-radius:50%;margin-right:2px;vertical-align:middle"></span> Sankashti Chaturthi</div>
+      <div class="leg-item"><span class="fest-dot chaturthi" style="width:8px;height:8px;display:inline-block;border-radius:50%;margin-right:2px;vertical-align:middle"></span> Vinayaka Chaturthi</div>
+      <div class="leg-item"><span class="fest-dot ganesh" style="width:8px;height:8px;display:inline-block;border-radius:50%;margin-right:2px;vertical-align:middle"></span> Ganesh Chaturthi</div>
+    </div>
   </div>
 </div>
 
@@ -444,6 +506,14 @@
     <div class="handle"></div>
     <button class="close-x" id="closeBtn">×</button>
     <div class="sheet-date" id="sDate"></div>
+
+    <div class="fest-card" id="festCard" style="display:none">
+      <div class="fest-emoji" id="festEmoji"></div>
+      <div class="fest-info">
+        <strong id="festName"></strong>
+        <span id="festDesc"></span>
+      </div>
+    </div>
 
     <div class="moon-card">
       <div class="moon-big" id="sBigIcon"></div>
@@ -510,11 +580,34 @@ function phaseInfo(date) {
 }
 
 function isMajor(p) {
-  // Highlight days near the four principal phases
   return p < 0.055 || p > 0.945 ||
          (p > 0.22  && p < 0.28) ||
          (p > 0.47  && p < 0.53) ||
          (p > 0.72  && p < 0.78);
+}
+
+/* ── Hindu tithi & festival detection ──
+   Tithi = 1/30th of a synodic cycle (12° of moon-sun elongation).
+   SunCalc phase × 30 → tithi index 0-29:
+     3  = Shukla Chaturthi (Vinayaka / Ganesh Chaturthi)
+     18 = Krishna Chaturthi (Sankashti Chaturthi)
+   We check at sunrise, matching the panchang convention. ── */
+const FEST = {
+  sankashti: { label: 'Sankashti Chaturthi', emoji: '🙏', desc: 'Krishna Paksha Chaturthi — fast day for Ganesha',     cls: 'sankashti' },
+  chaturthi: { label: 'Vinayaka Chaturthi',  emoji: '🪔', desc: 'Shukla Paksha Chaturthi — auspicious day for Ganesha', cls: 'chaturthi' },
+  ganesh:    { label: 'Ganesh Chaturthi',    emoji: '🎊', desc: 'Bhadrapada Shukla Chaturthi — major annual festival',  cls: 'ganesh'    },
+};
+
+function getFestival(date) {
+  const sun      = SunCalc.getTimes(date, lat, lng);
+  const checkAt  = (sun.sunrise && !isNaN(sun.sunrise)) ? sun.sunrise : new Date(date.getFullYear(), date.getMonth(), date.getDate(), 6);
+  const { phase } = SunCalc.getMoonIllumination(checkAt);
+  const tithi    = Math.floor(phase * 30);
+  const m        = date.getMonth(); // 0-indexed
+
+  if (tithi === 18) return FEST.sankashti;
+  if (tithi === 3)  return (m === 7) ? FEST.ganesh : FEST.chaturthi; // Aug = Bhadrapada = Ganesh Chaturthi
+  return null;
 }
 
 /* ── Formatting ── */
@@ -564,7 +657,9 @@ function render() {
     if (isPast)  cls.push('past');
     if (isMajor(pi.p)) cls.push('major');
     cell.className = cls.join(' ');
-    cell.innerHTML = `<div class="day-num">${d}</div><div class="phase-icon">${pi.emoji}</div>`;
+    const fest = getFestival(date);
+    const dotHtml = fest ? `<div class="fest-dot ${fest.cls}"></div>` : '';
+    cell.innerHTML = `<div class="day-num">${d}</div><div class="phase-icon">${pi.emoji}</div>${dotHtml}`;
     cell.addEventListener('click', () => openDay(d));
     grid.appendChild(cell);
   }
@@ -584,6 +679,18 @@ function openDay(d) {
   document.getElementById('sBigIcon').textContent  = pi.emoji;
   document.getElementById('sPhaseName').textContent = pi.name;
   document.getElementById('sIllum').textContent     = `${Math.round(pi.frac * 100)}% illuminated`;
+
+  const fest     = getFestival(date);
+  const festCard = document.getElementById('festCard');
+  if (fest) {
+    festCard.className    = `fest-card ${fest.cls}`;
+    festCard.style.display = 'flex';
+    document.getElementById('festEmoji').textContent = fest.emoji;
+    document.getElementById('festName').textContent  = fest.label;
+    document.getElementById('festDesc').textContent  = fest.desc;
+  } else {
+    festCard.style.display = 'none';
+  }
 
   document.getElementById('sSunrise').textContent  = fmt(sun.sunrise);
   document.getElementById('sSunset').textContent   = fmt(sun.sunset);
